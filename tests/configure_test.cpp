@@ -5,7 +5,7 @@
  *      Author: ShunTan
  */
 #include <stdio.h>
-#include "cpp/zookeeper_helper.h"
+#include "src-cpp/zookeeper_helper.h"
 
 /*
  * 测试zookeeper配置同步的问题

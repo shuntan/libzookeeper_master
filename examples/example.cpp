@@ -10,7 +10,7 @@
  * zookeeper还可应用于负载均衡,配置同步。等各种场景。
  */
 
-#include "cpp/zookeeper_helper.h"
+#include "src-cpp/zookeeper_helper.h"
 
 const char * g_hosts = "10.143.130.31:2181";
 
