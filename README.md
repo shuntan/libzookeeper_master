@@ -113,7 +113,7 @@ File bug reports, feature requests and questions using
 [GitHub Issues](https://github.com/shuntan/libzookeeper_master/issues)
 
 
-Questions and discussions are also welcome on irc.freenode.org, #apache-kafka,
+Questions and discussions are also welcome on irc.freenode.org, #apache-zookeeper,
 nickname Snaps.
 
 
