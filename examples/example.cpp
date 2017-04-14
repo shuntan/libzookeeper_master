@@ -4,7 +4,7 @@
  *  Created on: 2017年2月28日, Tencent Inc.
  *      Author: ShunTan
  */
-//主备切换  Master switch
+
 /*
  * 本例子为了测试基于zookeeper的主备切换功能,本机同时开启俩个程式即可看到效果。
  * zookeeper还可应用于负载均衡,配置同步。等各种场景。
@@ -57,9 +57,9 @@ class CExistCompletion: public zookeeper::CAsyncCompletion
     }
 };
 
-//////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////// 主备切换  Master switch ///////////////////////////////
 
-extern "C" int main()
+extern "C" int main(int argc, char* argv[])
 {
     int errcode;
     zookeeper::CZookeeperHelper zk(g_hosts, 1000, 2048, ZOO_LOG_LEVEL_DEBUG, true);

@@ -80,7 +80,7 @@ See the [wiki](https://cwiki.apache.org/confluence/display/ZOOKEEPER/Index) for 
 
 See [examples/example.cpp](https://github.com/shuntan/libzookeeper_master/examples/example.cpp) for an example master slave switch.
 
-Link your program with `-llibzookeeper -lz -lpthread -lrt`.
+Link your program with `-llibzookeeper -llibzookeeper-mt.a -lz -lpthread -lrt`.
 
 
 ## Documentation
