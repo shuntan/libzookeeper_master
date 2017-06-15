@@ -14,35 +14,36 @@
 
 const char * g_hosts = "10.143.130.31:2181";
 
-class CExistsWatcher: public zookeeper::CWatcherAction
+class CExistsWatcher: public zookeeper::CWatcherActionBase
 {
 public:
-    virtual void on_node_deleted(zookeeper::CZookeeperHelper* zk, const std::string& path)
+    CExistsWatcher(zookeeper::CZookeeperHelper* zk)
+    {
+        _zk = zk;
+    }
+
+public:
+    virtual void on_node_deleted(zhandle_t* zk, const std::string& path)
     {
         std::string value_path;
-        zk->zookeeper_create(path, "shit", &value_path);
+        _zk->zookeeper_create(path, "shit", &value_path);
         printf("Now, Im' the master \n");
-        clear();
     }
 
     void run()
     {
         while(true)
         {
-            if(!is_triggered())
-            {
-                printf("waiting for ....\n");
-                sleep(10);
-                continue;
-            }
-
             printf("working ....\n");
             sleep(1);
         }
     }
+
+private:
+    zookeeper::CZookeeperHelper* _zk;
 };
 
-class CExistCompletion: public zookeeper::CAsyncCompletion
+class CExistCompletion: public zookeeper::CAsyncCompletionBase
 {
     virtual void stat_compl(int errcode, const Stat& stat)
     {
@@ -75,6 +76,7 @@ extern "C" int main(int argc, char* argv[])
     else
     {
         printf("error:%s\n", zerror(errcode));
+        return 1;
     }
 
     // TEST MULTI
@@ -97,8 +99,8 @@ extern "C" int main(int argc, char* argv[])
     }
 
     // TEST ASYNC
-    CExistsWatcher exist_watcher;
-    zookeeper::CAsyncCompletion async_completion;
+    CExistsWatcher exist_watcher(&zk);
+    CExistCompletion async_completion;
     zk.zookeeper_exists("/ShunTan", &async_completion, &exist_watcher);
 
     // 模拟程序运行/空转

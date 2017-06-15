@@ -19,21 +19,21 @@ static zookeeper::CZookeeperHelper g_zk(g_hosts, 1000, 2048, ZOO_LOG_LEVEL_DEBUG
 
 
 ////////////////////////////////////读配置端,自动监控配置变化//////////////////////////////////////////////////
-class CConfigureZkRead: public zookeeper::CWatcherAction
+class CConfigureZkRead: public zookeeper::CWatcherActionBase
 {
 public:
-    virtual void on_node_created(zookeeper::CZookeeperHelper*,  const std::string& path)
+    virtual void on_node_created(zhandle_t* zk,  const std::string& path)
     {
         //std::cerr << "on_node_created \n" << std::endl;
     }
 
-    virtual void on_nodevalue_changed(zookeeper::CZookeeperHelper*, const std::string& path)
+    virtual void on_nodevalue_changed(zhandle_t* zk, const std::string& path)
     {
         if(get(_config))
             std::cerr << "config changed !\n" << std::endl;
     }
 
-    virtual void on_node_deleted(zookeeper::CZookeeperHelper*, const std::string& path)
+    virtual void on_node_deleted(zhandle_t* zk, const std::string& path)
     {
         //std::cerr << "on_node_deleted\n" << std::endl;
     }

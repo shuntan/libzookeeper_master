@@ -31,7 +31,7 @@ static FILE *open_logfile(const char* log_name)
     return logfile;
 }
 
-void async_completion(int errcode, ACL_vector *acl, Stat *stat, const void *data)
+static void async_completion(int errcode, ACL_vector *acl, Stat *stat, const void *data)
 {
     assert("Completion data is NULL" && data);
 
@@ -45,45 +45,29 @@ void async_completion(int errcode, ACL_vector *acl, Stat *stat, const void *data
         acls.push_back(acl_);
     }
 
-    static_cast<CAsyncCompletion*>((void*) data)->acl_compl(errcode, acls, *stat);
+    static_cast<CAsyncCompletionBase*>((void*) data)->acl_compl(errcode, acls, *stat);
 }
 
-void async_completion(int errcode, const char *value, int len, const Stat *stat,
+static void async_completion(int errcode, const char *value, int len, const Stat *stat,
         const void *data)
 {
     assert("Completion data is NULL" && data);
-    static_cast<CAsyncCompletion*>((void*) data)->data_compl(errcode, value, *stat);
+    static_cast<CAsyncCompletionBase*>((void*) data)->data_compl(errcode, value, *stat);
 }
 
-void async_completion(int errcode, const Stat *stat, const void *data)
+static void async_completion(int errcode, const Stat *stat, const void *data)
 {
     assert("Completion data is NULL" && data);
-    static_cast<CAsyncCompletion*>((void*) data)->stat_compl(errcode, *stat);
+    static_cast<CAsyncCompletionBase*>((void*) data)->stat_compl(errcode, *stat);
 }
 
-void async_completion(int errcode, const char *value, const void *data)
+static void async_completion(int errcode, const char *value, const void *data)
 {
     assert("Completion data is NULL" && data);
-    static_cast<CAsyncCompletion*>((void*) data)->string_compl(errcode, value);
+    static_cast<CAsyncCompletionBase*>((void*) data)->string_compl(errcode, value);
 }
 
-void async_completion(int errcode, const String_vector *strings, const void *data)
-{
-    assert("Completion data is NULL" && data);
-
-    std::vector<std::string> strings_;
-    for (int i = 0; i < strings->count; i++)
-    {
-        const std::string& string_ = strings->data[i];
-        //acl.id.id;
-        //acl.id.scheme;
-        //acl.perms;
-        strings_.push_back(string_);
-    }
-    static_cast<CAsyncCompletion*>((void*) data)->strings_compl(errcode, strings_);
-}
-
-void async_completion(int errcode, const String_vector *strings, const Stat *stat, const void *data)
+static void async_completion(int errcode, const String_vector *strings, const void *data)
 {
     assert("Completion data is NULL" && data);
 
@@ -96,202 +80,181 @@ void async_completion(int errcode, const String_vector *strings, const Stat *sta
         //acl.perms;
         strings_.push_back(string_);
     }
-    static_cast<CAsyncCompletion*>((void*) data)->strings_compl(errcode, strings_, *stat);
+    static_cast<CAsyncCompletionBase*>((void*) data)->strings_compl(errcode, strings_);
 }
 
-void async_completion(int errcode, const void *data)
+static void async_completion(int errcode, const String_vector *strings, const Stat *stat, const void *data)
 {
     assert("Completion data is NULL" && data);
-    static_cast<CAsyncCompletion*>((void*) data)->void_compl(errcode);
+
+    std::vector<std::string> strings_;
+    for (int i = 0; i < strings->count; i++)
+    {
+        const std::string& string_ = strings->data[i];
+        //acl.id.id;
+        //acl.id.scheme;
+        //acl.perms;
+        strings_.push_back(string_);
+    }
+    static_cast<CAsyncCompletionBase*>((void*) data)->strings_compl(errcode, strings_, *stat);
+}
+
+static void async_completion(int errcode, const void *data)
+{
+    assert("Completion data is NULL" && data);
+    static_cast<CAsyncCompletionBase*>((void*) data)->void_compl(errcode);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void active_watcher(zhandle_t *zh, int type, int state, const char *path,
+static void active_watcher(zhandle_t *zh, int type, int state, const char *path,
         void* ctx)
 {
     if (zh == NULL || ctx == NULL)
         return;
-    CWatcherAction* action = (CWatcherAction*) ctx;
+    CWatcherActionBase* action = (CWatcherActionBase*) ctx;
 
     // 先判断  Zookeeper 连接状态
     if (state == ZOO_EXPIRED_SESSION_STATE)
-        action->on_session_expired(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_session_expired(zh);
     else if (state == ZOO_CONNECTING_STATE)
-        action->on_connection_lost(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_connection_lost(zh);
     else if (state == ZOO_CONNECTED_STATE)
-        action->on_connection_established(static_cast<CZookeeperHelper*>(action->m_data)); //正常应该返回的状态
+        action->on_connection_established(zh); //正常应该返回的状态
     else if (state == ZOO_ASSOCIATING_STATE)
-        action->on_associating_refuse(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_associating_refuse(zh);
     else if (state == ZOO_AUTH_FAILED_STATE)
-        action->on_auth_failed(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_auth_failed(zh);
 
     if (type == ZOO_SESSION_EVENT)
-        action->on_session_lost(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_session_lost(zh);
     else if (type == ZOO_CHANGED_EVENT)
-        action->on_nodevalue_changed(static_cast<CZookeeperHelper*>(action->m_data), path);
+        action->on_nodevalue_changed(zh, path);
     else if (type == ZOO_DELETED_EVENT)
-        action->on_node_deleted(static_cast<CZookeeperHelper*>(action->m_data), path);
+        action->on_node_deleted(zh, path);
     else if (type == ZOO_CHILD_EVENT)
-        action->on_child_changed(static_cast<CZookeeperHelper*>(action->m_data), path);
+        action->on_child_changed(zh, path);
     else if (type == ZOO_CREATED_EVENT)
-        action->on_node_created(static_cast<CZookeeperHelper*>(action->m_data), path);
+        action->on_node_created(zh, path);
     else if (type == ZOO_NOTWATCHING_EVENT)
-        action->on_watching_removed(static_cast<CZookeeperHelper*>(action->m_data));
+        action->on_watching_removed(zh);
     // TODO: implement for the rest of the event types
     // ...
 }
 
-////////////////////////////////////CAsyncCompletion////////////////////////////////////////
-CAsyncCompletion::CAsyncCompletion() : m_triggered(false)
+////////////////////////////////////CAsyncCompletionBase////////////////////////////////////////
+CAsyncCompletionBase::CAsyncCompletionBase()
+{
+}
+
+CAsyncCompletionBase::~CAsyncCompletionBase()
+{
+}
+
+void CAsyncCompletionBase::acl_compl(int errcode, const std::vector<ACL>& acls, const Stat& stat)
 {
 
 }
 
-CAsyncCompletion::~CAsyncCompletion()
+void CAsyncCompletionBase::data_compl(int errcode, const std::string& value, const Stat& stat)
 {
-    clear();
+
 }
 
-void CAsyncCompletion::acl_compl(int errcode, const std::vector<ACL>& acls, const Stat& stat)
+void CAsyncCompletionBase::stat_compl(int errcode, const Stat& stat)
 {
-    m_triggered = (true);
+
 }
 
-void CAsyncCompletion::data_compl(int errcode, const std::string& value, const Stat& stat)
+void CAsyncCompletionBase::string_compl(int errcode, const std::string& value)
 {
-    m_triggered = (true);
+
 }
 
-void CAsyncCompletion::stat_compl(int errcode, const Stat& stat)
+void CAsyncCompletionBase::strings_compl(int errcode, const std::vector<std::string>& strings)
 {
-    m_triggered = (true);
+
 }
 
-void CAsyncCompletion::string_compl(int errcode, const std::string& value)
+void CAsyncCompletionBase::strings_compl(int errcode, const std::vector<std::string>& strings, const Stat& stat)
 {
-    m_triggered = (true);
+
 }
 
-void CAsyncCompletion::strings_compl(int errcode, const std::vector<std::string>& strings)
+void CAsyncCompletionBase::void_compl(int errcode)
 {
-    m_triggered = (true);
-}
 
-void CAsyncCompletion::strings_compl(int errcode, const std::vector<std::string>& strings, const Stat& stat)
-{
-    m_triggered = (true);
-}
-
-void CAsyncCompletion::void_compl(int errcode)
-{
-    m_triggered = (true);
-}
-
-bool CAsyncCompletion::is_triggered() const
-{
-    return m_triggered;      // 是否触发
-}
-
-void CAsyncCompletion::clear()
-{
-    m_triggered = false;
 }
 
 /////////////////////////////////////////////////CWatcherAction///////////////////////////////////////////////////
-CWatcherAction::CWatcherAction() : m_connected(false), m_triggered(false), m_data(NULL)
+CWatcherActionBase::CWatcherActionBase()
 {
-
 }
 
-CWatcherAction::~CWatcherAction()
+CWatcherActionBase::~CWatcherActionBase()
 {
-    clear();
 }
 
-void CWatcherAction::on_session_expired(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_session_expired(zhandle_t *zh)
 {
     // ZOO_EXPIRED_SESSION_STATE;
 }
 
-void CWatcherAction::on_connection_established(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_connection_established(zhandle_t *zh)
 {
     // ZOO_CONNECTED_STATE
-    m_connected = true;
 }
 
-void CWatcherAction::on_connection_lost(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_connection_lost(zhandle_t *zh)
 {
     // ZOO_CONNECTING_STATE
 }
 
-void CWatcherAction::on_associating_refuse(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_associating_refuse(zhandle_t *zh)
 {
     // ZOO_ASSOCIATING_STATE;
 }
 
-void CWatcherAction::on_auth_failed(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_auth_failed(zhandle_t *zh)
 {
     // ZOO_AUTH_FAILED_STATE;
 }
 
 // 监视类型变化
-void CWatcherAction::on_session_lost(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_session_lost(zhandle_t *zh)
 {
-    m_triggered = true;
     // ZOO_SESSION_EVENT;
 }
 
-void CWatcherAction::on_node_created(CZookeeperHelper* zookeeper_handler, const std::string& path)
+void CWatcherActionBase::on_node_created(zhandle_t *zh, const std::string& path)
 {
-    m_triggered = true;
     // ZOO_CREATED_EVENT;
 }
 
-void CWatcherAction::on_nodevalue_changed(CZookeeperHelper* zookeeper_handler, const std::string& path)
+void CWatcherActionBase::on_nodevalue_changed(zhandle_t *zh, const std::string& path)
 {
-    m_triggered = true;
     // ZOO_CHANGED_EVENT;
 }
 
-void CWatcherAction::on_node_deleted(CZookeeperHelper* zookeeper_handler, const std::string& path)
+void CWatcherActionBase::on_node_deleted(zhandle_t *zh, const std::string& path)
 {
-    m_triggered = true;
     // ZOO_DELETED_EVENT;
 }
 
-void CWatcherAction::on_child_changed(CZookeeperHelper* zookeeper_handler, const std::string& path)
+void CWatcherActionBase::on_child_changed(zhandle_t *zh, const std::string& path)
 {
-    m_triggered = true;
     // ZOO_CHILD_EVENT;
 }
 
-void CWatcherAction::on_watching_removed(CZookeeperHelper* zookeeper_handler)
+void CWatcherActionBase::on_watching_removed(zhandle_t *zh)
 {
-    m_triggered = true;
     // ZOO_NOTWATCHING_EVENT;
-}
-
-bool CWatcherAction::is_connected() const
-{
-    return m_connected;
-}
-
-bool CWatcherAction::is_triggered() const
-{
-    return m_triggered;
-}
-
-void CWatcherAction::clear()
-{
-    m_connected = (false);
-    m_triggered = (false);
 }
 
 ///////////////////////////////////////////////CZookeeperHelper///////////////////////////////////////////////////
 CZookeeperHelper::CZookeeperHelper(const std::string& hosts, uint16_t timeout,
         uint16_t buffer_length, ZooLogLevel log_level, bool enable_logfile) :
-        m_zk_handle(NULL), m_watcher_init(NULL)
+        m_zk_handle(NULL), m_connected(false)
 {
     m_hosts = hosts;
     m_timeout = timeout;
@@ -317,13 +280,11 @@ CZookeeperHelper::~CZookeeperHelper()
 ZOO_ERRORS CZookeeperHelper::connect()
 {
     int errcode = ZOK;
-    m_watcher_init = new CWatcherAction();
-    m_watcher_init->m_data = this;
     // which is good for more even client connection distribution among the quorum peers.
     zoo_deterministic_conn_order(1);
 
     m_zk_handle = zookeeper_init(m_hosts.c_str(), active_watcher, m_timeout,
-            NULL, m_watcher_init, 0);
+            NULL, this, 0);
 
     if (m_zk_handle == NULL)
     {
@@ -336,7 +297,7 @@ ZOO_ERRORS CZookeeperHelper::connect()
     }
 
     size_t try_times = 0;
-    while (!m_watcher_init->is_connected())
+    while (!m_connected)
     {
         if (try_times > 10)
         {
@@ -344,7 +305,7 @@ ZOO_ERRORS CZookeeperHelper::connect()
             return (ZOO_ERRORS)errcode;
         }
 
-        usleep(100);
+        usleep(1000);
         try_times++;
     }
 
@@ -356,10 +317,8 @@ ZOO_ERRORS CZookeeperHelper::reconncet()
     int errcode = ZOK;
     close();
 
-    m_watcher_init = new CWatcherAction();
-    m_watcher_init->m_data = this;
     m_zk_handle = zookeeper_init(m_hosts.c_str(), active_watcher, m_timeout,
-            &m_client_id, m_watcher_init, 0);
+            &m_client_id, this, 0);
 
     if (m_zk_handle == NULL)
     {
@@ -373,7 +332,7 @@ ZOO_ERRORS CZookeeperHelper::reconncet()
     }
 
     size_t try_times = 0;
-    while (!m_watcher_init->is_connected())
+    while (!m_connected)
     {
         if (try_times > 10)
         {
@@ -381,7 +340,7 @@ ZOO_ERRORS CZookeeperHelper::reconncet()
             return (ZOO_ERRORS)errcode;
         }
 
-        usleep(100);
+        usleep(1000);
         try_times++;
     }
 
@@ -392,12 +351,6 @@ ZOO_ERRORS CZookeeperHelper::close()
 {
     int errcode = zookeeper_close(m_zk_handle);
     m_zk_handle = NULL;
-
-    if (m_watcher_init != NULL)
-    {
-        delete m_watcher_init;
-        m_watcher_init = NULL;
-    }
 
     return (ZOO_ERRORS)errcode;
 }
@@ -471,7 +424,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_create(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_create(const std::string& path,
-        const std::string& value, CAsyncCompletion* completion,
+        const std::string& value, CAsyncCompletionBase* completion,
         const ACL_vector& acl_entries, int flags)
 {
     int errcode;
@@ -544,7 +497,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_set(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_set(const std::string& path,
-        const std::string& value, CAsyncCompletion* completion, int version)
+        const std::string& value, CAsyncCompletionBase* completion, int version)
 {
     int errcode;
     int try_times = 2;
@@ -605,7 +558,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_delete(const std::string& path, int versi
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_delete(const std::string& path,
-        CAsyncCompletion* completion, int version)
+        CAsyncCompletionBase* completion, int version)
 {
     int errcode;
     int try_times = 2;
@@ -632,7 +585,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_delete(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
-        CWatcherAction* watcher_action, Stat* stat)
+        CWatcherActionBase* watcher_action, Stat* stat)
 {
     int errcode;
     int try_times = 2;
@@ -644,7 +597,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_wexists(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, stat);
         }
@@ -667,7 +619,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
-        CAsyncCompletion* completion, CWatcherAction* watcher_action)
+        CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action)
 {
     int errcode;
     int try_times = 2;
@@ -680,7 +632,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_awexists(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, async_completion, completion);
         }
@@ -703,7 +654,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_exists(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
-        std::string* value, CWatcherAction* watcher_action, Stat* stat)
+        std::string* value, CWatcherActionBase* watcher_action, Stat* stat)
 {
     int errcode , buffer_length = m_default_buffer_length, try_times = 2;
     char buffer[buffer_length];
@@ -718,7 +669,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_wget(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, buffer, &buffer_length, stat);
         }
@@ -746,7 +696,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
-        CAsyncCompletion* completion, CWatcherAction* watcher_action)
+        CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action)
 {
     int errcode, try_times = 2;
 
@@ -759,7 +709,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_awget(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, async_completion, completion);
         }
@@ -782,7 +731,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_get_children(const std::string& path,
-        std::vector<std::string>* childrens, CWatcherAction* watcher_action,
+        std::vector<std::string>* childrens, CWatcherActionBase* watcher_action,
         Stat* stat)
 {
     int errcode, try_times = 2;
@@ -797,7 +746,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get_children(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_wget_children2(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, &vec_strings, stat);
         }
@@ -834,7 +782,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get_children(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_get_children(const std::string& path,
-        CAsyncCompletion* completion, CWatcherAction* watcher_action)
+        CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action)
 {
     int errcode, try_times = 2;
 
@@ -847,7 +795,6 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get_children(const std::string& path,
         }
         else
         {
-            watcher_action->m_data = this;
             errcode = zoo_awget_children2(m_zk_handle, path.c_str(), active_watcher,
                     watcher_action, async_completion, completion);
         }
@@ -911,7 +858,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_get_acl(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_get_acl(const std::string& path,
-        CAsyncCompletion* completion)
+        CAsyncCompletionBase* completion)
 {
     int errcode, try_times = 2;
     do
@@ -972,7 +919,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_set_acl(const std::string& path,
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_set_acl(const std::string& path,
-        const ACL_vector& acls, CAsyncCompletion* completion,
+        const ACL_vector& acls, CAsyncCompletionBase* completion,
         int version)
 {
     int errcode, try_times = 2;
@@ -1173,7 +1120,7 @@ ZOO_ERRORS CZookeeperHelper::zookeeper_multi(const std::vector<STOption>& option
 }
 
 ZOO_ERRORS CZookeeperHelper::zookeeper_multi(const std::vector<STOption>& options,
-        CAsyncCompletion* completion, std::vector<STResult>& results)
+        CAsyncCompletionBase* completion, std::vector<STResult>& results)
 {
     int errcode, try_times = 2;
     zoo_op_t ops_arrary[options.size()];

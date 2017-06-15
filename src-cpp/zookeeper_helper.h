@@ -21,32 +21,25 @@
 namespace zookeeper {
 
 /* 编译时使用 zookeeper_mt(多线程库)编译
- * 异步回调函数声明,直接被类CAsyncCompletion回调。
+ * 异步回调函数声明,直接被类CAsyncCompletionBase回调。
  * 监视回调函数声明,直接被类CWatcherAction回调。
  */
 
 class CZookeeperHelper;
-class CAsyncCompletion;
-inline void async_completion(int errcode, ACL_vector *acls, Stat *stat, const void *data);
-inline void async_completion(int errcode, const char *value, int len, const Stat *stat, const void *data);
-inline void async_completion(int errcode, const Stat *stat, const void *data);
-inline void async_completion(int errcode, const char *value, const void *data);
-inline void async_completion(int errcode, const String_vector *strings, const void *data);
-inline void async_completion(int errcode, const String_vector *strings, const Stat *stat, const void *data);
-inline void async_completion(int errcode, const void *data);
-class CWatcherAction;
-inline void active_watcher(zhandle_t *zh, int type, int state, const char *path, void* ctx);
+class CAsyncCompletionBase;
+class CWatcherActionBase;
 
 /*
  * 异步调用类,其中包含了异步调用触发状态triggered,当triggered=true时表明回调成功,利用回调的参数进行主动操作。
  * 也可以子类继承,自己定义接口,该类的对象应作为API函数的ASYNC参数指针。
  */
-class CAsyncCompletion
+class CAsyncCompletionBase
 {
 public:
-    CAsyncCompletion();
-    virtual ~CAsyncCompletion();
+    CAsyncCompletionBase();
+    virtual ~CAsyncCompletionBase();
 
+public:
     virtual void acl_compl(int errcode, const std::vector<ACL>& acls, const Stat& stat);
 
     virtual void data_compl(int errcode, const std::string& value, const Stat& stat);
@@ -60,65 +53,42 @@ public:
     virtual void strings_compl(int errcode, const std::vector<std::string>& strings, const Stat& stat);
 
     virtual void void_compl(int errcode);
-
-public:
-    bool is_triggered() const;
-
-    void clear();   //清除上次异步回调的信息
-
-private:
-    volatile bool m_triggered;   // 是否触发
 };
 
 /*
  * 监视调用类,其中包含了监视调用触发状态triggered,当triggered=true时表明监视状态发生变化。
  * 也可以子类继承,自己定义接口,在状态发生变化的时刻做相应的操作。该类的对象应作为API函数的Watcher参数指针,为空指针即表明不设置监视。
  */
-
-class CWatcherAction
+class CWatcherActionBase
 {
 public:
-    CWatcherAction();
-    virtual ~CWatcherAction();
+    CWatcherActionBase();
+    virtual ~CWatcherActionBase();
 
+public:
     /*****连接状态******/
-    virtual void on_session_expired(CZookeeperHelper* zookeeper_handler);
+    virtual void on_session_expired(zhandle_t *zh);
 
-    virtual void on_connection_established(CZookeeperHelper* zookeeper_handler);
+    virtual void on_connection_established(zhandle_t *zh);
 
-    virtual void on_connection_lost(CZookeeperHelper* zookeeper_handler);
+    virtual void on_connection_lost(zhandle_t *zh);
 
-    virtual void on_associating_refuse(CZookeeperHelper* zookeeper_handler);
+    virtual void on_associating_refuse(zhandle_t *zh);
 
-    virtual void on_auth_failed(CZookeeperHelper* zookeeper_handler);
+    virtual void on_auth_failed(zhandle_t *zh);
 
     /******监视类型变化*****/
-    virtual void on_session_lost(CZookeeperHelper* zookeeper_handler);
+    virtual void on_session_lost(zhandle_t *zh);
 
-    virtual void on_node_created(CZookeeperHelper* zookeeper_handler, const std::string& path);
+    virtual void on_node_created(zhandle_t *zh, const std::string& path);
 
-    virtual void on_nodevalue_changed(CZookeeperHelper* zookeeper_handler, const std::string& path);
+    virtual void on_nodevalue_changed(zhandle_t *zh, const std::string& path);
 
-    virtual void on_node_deleted(CZookeeperHelper* zookeeper_handler, const std::string& path);
+    virtual void on_node_deleted(zhandle_t *zh, const std::string& path);
 
-    virtual void on_child_changed(CZookeeperHelper* zookeeper_handler, const std::string& path);
+    virtual void on_child_changed(zhandle_t *zh, const std::string& path);
 
-    virtual void on_watching_removed(CZookeeperHelper* zookeeper_handler);
-
-
-public:
-    bool is_connected() const;
-
-    bool is_triggered() const;
-
-    void clear();
-
-private:
-    volatile bool m_connected;           // 连接状态
-    volatile bool m_triggered;           // 是否触发
-
-public:
-    void*  m_data;
+    virtual void on_watching_removed(zhandle_t *zh);
 };
 
 /*
@@ -185,9 +155,9 @@ typedef struct STResult
 
 /*
  * zookeeper辅助类
- * 分为同步和异步的API,带有CAsyncCompletion参数的为ASYNC异步,不带的为SYNC同步。
+ * 分为同步和异步的API,带有CAsyncCompletionBase参数的为ASYNC异步,不带的为SYNC同步。
  */
-class CZookeeperHelper
+class CZookeeperHelper: public CWatcherActionBase
 {
 public:
 
@@ -219,28 +189,28 @@ public:
 
     // 基本操作API,上为SYNC,下为ASYNC
     ZOO_ERRORS zookeeper_create(const std::string& path, const std::string& value, std::string* path_value, const ACL_vector& acl_entries = ZOO_OPEN_ACL_UNSAFE, int flags = ZOO_EPHEMERAL);
-    ZOO_ERRORS zookeeper_create(const std::string& path, const std::string& value, CAsyncCompletion* completion, const ACL_vector& acl_entries = ZOO_OPEN_ACL_UNSAFE, int flags = ZOO_EPHEMERAL);
+    ZOO_ERRORS zookeeper_create(const std::string& path, const std::string& value, CAsyncCompletionBase* completion, const ACL_vector& acl_entries = ZOO_OPEN_ACL_UNSAFE, int flags = ZOO_EPHEMERAL);
 
     ZOO_ERRORS zookeeper_set(const std::string& path, const std::string& value, int version = -1);
-    ZOO_ERRORS zookeeper_set(const std::string& path, const std::string& value, CAsyncCompletion* completion, int version = -1);
+    ZOO_ERRORS zookeeper_set(const std::string& path, const std::string& value, CAsyncCompletionBase* completion, int version = -1);
 
     ZOO_ERRORS zookeeper_delete(const std::string& path, int version = -1);
-    ZOO_ERRORS zookeeper_delete(const std::string& path, CAsyncCompletion* completion, int version = -1);
+    ZOO_ERRORS zookeeper_delete(const std::string& path, CAsyncCompletionBase* completion, int version = -1);
 
-    ZOO_ERRORS zookeeper_exists(const std::string& path, CWatcherAction* watcher_action = NULL, Stat* stat = NULL);
-    ZOO_ERRORS zookeeper_exists(const std::string& path, CAsyncCompletion* completion, CWatcherAction* watcher_action = NULL);
+    ZOO_ERRORS zookeeper_exists(const std::string& path, CWatcherActionBase* watcher_action = NULL, Stat* stat = NULL);
+    ZOO_ERRORS zookeeper_exists(const std::string& path, CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action = NULL);
 
-    ZOO_ERRORS zookeeper_get(const std::string& path, std::string* value, CWatcherAction* watcher_action = NULL, Stat* stat = NULL);
-    ZOO_ERRORS zookeeper_get(const std::string& path, CAsyncCompletion* completion, CWatcherAction* watcher_action = NULL);
+    ZOO_ERRORS zookeeper_get(const std::string& path, std::string* value, CWatcherActionBase* watcher_action = NULL, Stat* stat = NULL);
+    ZOO_ERRORS zookeeper_get(const std::string& path, CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action = NULL);
 
-    ZOO_ERRORS zookeeper_get_children(const std::string& path,std::vector<std::string>* childrens, CWatcherAction* watcher_action = NULL, Stat* stat = NULL);
-    ZOO_ERRORS zookeeper_get_children(const std::string& path,CAsyncCompletion* completion, CWatcherAction* watcher_action = NULL);
+    ZOO_ERRORS zookeeper_get_children(const std::string& path,std::vector<std::string>* childrens, CWatcherActionBase* watcher_action = NULL, Stat* stat = NULL);
+    ZOO_ERRORS zookeeper_get_children(const std::string& path,CAsyncCompletionBase* completion, CWatcherActionBase* watcher_action = NULL);
 
     ZOO_ERRORS zookeeper_get_acl(const std::string& path, std::vector<ACL>* acls, Stat* stat = NULL);
-    ZOO_ERRORS zookeeper_get_acl(const std::string& path, CAsyncCompletion* completion);
+    ZOO_ERRORS zookeeper_get_acl(const std::string& path, CAsyncCompletionBase* completion);
 
     ZOO_ERRORS zookeeper_set_acl(const std::string& path, const ACL_vector& acls, int version = -1);
-    ZOO_ERRORS zookeeper_set_acl(const std::string& path, const ACL_vector& acls, CAsyncCompletion* completion, int version = -1);
+    ZOO_ERRORS zookeeper_set_acl(const std::string& path, const ACL_vector& acls, CAsyncCompletionBase* completion, int version = -1);
 
     // 复合原子操作API
     STOption zookeeper_create_op_init(const std::string& path, const std::string& value, const ACL_vector& acl_entries = ZOO_OPEN_ACL_UNSAFE, int flags = ZOO_EPHEMERAL);
@@ -249,7 +219,15 @@ public:
     STOption zookeeper_check_op_init(const std::string& path, int version = -1);
 
     ZOO_ERRORS zookeeper_multi(const std::vector<STOption>& options, std::vector<STResult>& results);
-    ZOO_ERRORS zookeeper_multi(const std::vector<STOption>& options, CAsyncCompletion* completion, std::vector<STResult>& results);
+    ZOO_ERRORS zookeeper_multi(const std::vector<STOption>& options, CAsyncCompletionBase* completion, std::vector<STResult>& results);
+
+private:
+    // zookeeper_helper 自己调用的函数
+    virtual void on_session_expired(zhandle_t *zh) { reconncet(); }
+
+    virtual void on_connection_established(zhandle_t *zh) { m_connected = true; }
+
+    virtual void on_connection_lost(zhandle_t *zh) { reconncet(); }
 
 private:
     std::string m_hosts;               // zookeeperk服务端集群的host列表
@@ -257,8 +235,8 @@ private:
     uint16_t m_default_buffer_length;  // 默认创建buffer数据缓存的大小
     clientid_t m_client_id;            // 连接zookeeper的客户端ID
     zhandle_t* m_zk_handle;            // zookeeper的指针句柄
-    CWatcherAction* m_watcher_init;    // 监视连接是否成功
     FILE* m_log_file;                  // 开启日志的文件流?
+    bool m_connected;                  // 是否已经连接中?
 };
 
 }
